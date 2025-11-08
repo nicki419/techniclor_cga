@@ -1,0 +1,33 @@
+{
+  "title": "Technicolor CGA",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Technicolor CGA",
+        "description": "Enter your router host and credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "host": "Host (e.g., 192.168.0.1)"
+        }
+      }
+    },
+    "error": {},
+    "abort": {}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Technicolor CGA Options",
+        "description": "Polling interval and per-IP customization.",
+        "data": {
+          "scan_interval": "Scan interval (seconds, minimum 10)",
+          "disabled_ips": "Disabled IPs (comma or newline separated)",
+          "name_overrides_ip": "Name overrides by IP (one per line: 'ip = Name' or 'ip: Name')",
+          "disabled_macs": "Disabled MACs (legacy; comma/newline separated)",
+          "name_overrides": "Name overrides by MAC (legacy; one per line: 'mac = Name' or 'mac: Name')"
+        }
+      }
+    }
+  }
+}

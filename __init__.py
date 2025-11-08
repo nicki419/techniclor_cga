@@ -1,8 +1,11 @@
 import logging
+
+from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_HOST
 from .technicolor_cga import TechnicolorCGA
+from .config_flow import TechnicolorCGAOptionsFlowHandler
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,22 +18,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     password = entry.data[CONF_PASSWORD]
     router = entry.data[CONF_HOST]  # Use CONF_HOST to get the router
 
-    _LOGGER.debug(f"Setting up Technicolor CGA with router {router}")
+    _LOGGER.info("[TCGA] Setting up integration for router=%s", router)
 
     try:
         technicolor_cga = TechnicolorCGA(username, password, router)
         await hass.async_add_executor_job(technicolor_cga.login)
-    except Exception as e:
-        _LOGGER.error(f"Failed to log in to Technicolor CGA: {e}")
+        _LOGGER.info("[TCGA] Login successful to router=%s", router)
+    except Exception:
+        _LOGGER.exception("[TCGA] Failed to log in to Technicolor CGA (router=%s)", router)
         return False
 
     hass.data[DOMAIN][entry.entry_id] = technicolor_cga
-    hass.async_create_task(hass.config_entries.async_forward_entry_setups(entry, ["sensor"]))
+    _LOGGER.info("[TCGA] Forwarding entry setups for platforms: sensor, device_tracker")
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "device_tracker"])  # Await per HA 2025.1 requirements
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_forward_entry_unload(entry, "sensor")
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "device_tracker"])
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
 

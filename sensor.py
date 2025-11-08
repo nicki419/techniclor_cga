@@ -10,7 +10,7 @@ from .technicolor_cga import TechnicolorCGA
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(seconds=300)
+DEFAULT_SCAN_SECONDS = 60
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -20,6 +20,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     username = config_entry.data[CONF_USERNAME]
     password = config_entry.data[CONF_PASSWORD]
     host = config_entry.data[CONF_HOST]
+
+    # Determine scan interval from options
+    scan_seconds = int(config_entry.options.get("scan_interval", DEFAULT_SCAN_SECONDS))
+    if scan_seconds < 10:
+        scan_seconds = 10
+    scan_interval = timedelta(seconds=scan_seconds)
 
     try:
         technicolor_cga = TechnicolorCGA(username, password, host)
@@ -94,14 +100,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     async_add_entities(sensors, True)
     _LOGGER.debug("Technicolor CGA sensors added (with device_info)")
 
-    # Call async_update at a fixed interval
-    for sensor in sensors:
-        async_track_time_interval(hass, sensor.async_update, SCAN_INTERVAL)
+    # Schedule periodic refreshes with write-back
+    async def _refresh_entity(now, entity: SensorEntity):
+        await entity.async_update()
+        entity.async_write_ha_state()
 
-    # Also perform a bulk refresh on the same schedule (kept from original behavior)
-    async_track_time_interval(
-        hass, lambda _: [sensor.async_update() for sensor in sensors], SCAN_INTERVAL
-    )
+    for sensor in sensors:
+        async_track_time_interval(hass, lambda now, ent=sensor: hass.async_create_task(_refresh_entity(now, ent)), scan_interval)
 
 
 class TechnicolorCGABaseSensor(SensorEntity):
@@ -240,6 +245,30 @@ class TechnicolorCGAHostDeltaSensor(SensorEntity):
         self._missing_devices = []
         self._known_devices = {}  # dynamically learned known devices
         _LOGGER.debug(f"{name} Sensor initialized (host: {host})")
+
+    def _coerce_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        s = str(value).strip().lower()
+        if s in ("true", "1", "yes", "on"):
+            return True
+        if s in ("false", "0", "no", "off", "none", ""):
+            return False
+        return None
+
+    def _is_online(self, dev: dict) -> bool:
+        # Prefer explicit boolean Active, then Status ONLINE/offline
+        active = dev.get("active")
+        active_bool = self._coerce_bool(active)
+        if active_bool is not None:
+            return bool(active_bool)
+        status = str(dev.get("Status", dev.get("status", "")))
+        if status.upper() == "ONLINE":
+            return True
+        if status.lower() == "offline":
+            return False
+        # fallback: truthy active string means online
+        return bool(self._coerce_bool(active))
 
     @property
     def unique_id(self):

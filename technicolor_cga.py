@@ -48,7 +48,7 @@ class TechnicolorCGA:
         challenge = self.challenge(challenge, response['saltwebui'])
 
         data = {
-            "username": "user",
+            "username": self.username,
             "password": challenge
         }
 
